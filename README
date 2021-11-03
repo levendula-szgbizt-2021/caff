@@ -3,3 +3,18 @@ CAFF
 
 This simple C library implements a parser for the CAFF format described
 in docs/spec.txt.
+
+To build the library and the cli binary, simply execute
+
+	$ make
+
+To install them on your system under PREFIX (/usr/local by default),
+issue
+
+	# make install
+
+There are more targets; examine the Makefile if you are interested.
+You may also remove both the library and the binary installed to PREFIX
+by
+
+	# make deinstall
