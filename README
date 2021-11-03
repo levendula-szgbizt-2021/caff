@@ -1,0 +1,5 @@
+CAFF
+====
+
+This simple C library implements a parser for the CAFF format described
+in docs/spec.txt.
