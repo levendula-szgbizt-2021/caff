@@ -6,8 +6,8 @@
 #include <time.h>
 
 struct frame {
-	long            frame_dur;
-	struct ciff    *frame_ciff;
+	long            fr_dur;
+	struct ciff    *fr_ciff;
 };
 
 struct caff {

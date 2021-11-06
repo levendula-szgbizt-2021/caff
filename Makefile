@@ -6,6 +6,7 @@ MAN3            =
 
 SRCS            = caff.c cli.c
 OBJS            = ${SRCS:.c=.o}
+LIBS            = -ljpeg -lciff
 
 CFLAGS         += -O2 -pipe
 CFLAGS         += -Wall

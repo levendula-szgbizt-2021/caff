@@ -52,6 +52,8 @@ main(int argc, char **argv)
 
 	/* ciff_gif_compress(caff, out); */
 
+	free(caff->caff_creator);
+	free(caff->caff_frames);
 	free(caff);
 	return 0;
 }
