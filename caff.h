@@ -21,7 +21,7 @@ struct caff {
 struct caff *   caff_parse(struct caff *, FILE *);
 void            caff_dump_info(struct caff *, FILE *);
 
-struct ciff *   caff_get_frame(struct caff *, size_t);
+struct frame *  caff_get_frame(struct caff *, size_t);
 
 void            caff_gif_compress(struct caff *, FILE *);
 

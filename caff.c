@@ -59,7 +59,7 @@ static int                      _parse_block(struct caff *,
 /* caff.h */
 struct caff *                   caff_parse(struct caff *, FILE *);
 void                            caff_dump_info(struct caff *, FILE *);
-struct ciff *                   caff_get_frame(struct caff *, size_t);
+struct frame *                  caff_get_frame(struct caff *, size_t);
 void                            caff_gif_compress(struct caff *,
 				    FILE *);
 
@@ -429,11 +429,15 @@ caff_dump_info(struct caff *caff, FILE *stream)
 	(void)fprintf(stream, "-----------------------------\n");
 }
 
-struct ciff *
+struct frame *
 caff_get_frame(struct caff *caff, size_t index)
 {
-	warnx("%s: not yet implemented", __func__);
-	return NULL;
+	if (index >= caff->caff_nframe) {
+		warnx("%s: frame index out of bounds", __func__);
+		return NULL;
+	}
+
+	return &caff->caff_frames[index];
 }
 
 void
