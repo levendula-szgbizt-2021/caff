@@ -1,13 +1,19 @@
-#include <ciff.h>
 #include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <wand/MagickWand.h>
+#include <ciff.h>
 
 #include "caff.h"
 
 #define MAGIC "CAFF"
 #define MAGIC_LENGTH 4
+
+#define TMPPATT "/tmp/caff.XXXXXXXXXX"
+#define TMPPATTLEN 21
 
 struct _caff_block {
 	char    cb_id;
@@ -56,10 +62,11 @@ static int                      _parse_frame(struct caff *,
 static int                      _parse_block(struct caff *,
 				    struct _caff_block *);
 
+FILE **                         _get_tmpfile(FILE **, char*, size_t);
+
 /* caff.h */
 struct caff *                   caff_parse(struct caff *, FILE *);
 void                            caff_dump_info(struct caff *, FILE *);
-struct frame *                  caff_get_frame(struct caff *, size_t);
 void                            caff_gif_compress(struct caff *,
 				    FILE *);
 
@@ -339,6 +346,28 @@ err_fr:
 	return 1;
 }
 
+FILE **
+_get_tmpfile(FILE **ptr, char *path, size_t len) {
+	int     fd;
+
+	(void)strncpy(path, TMPPATT, len - 1);
+	path[len - 1] = '\0';
+
+	if ((fd = mkstemp(path)) == -1) {
+		warn("%s: mkstemp", __func__);
+		return NULL;
+	}
+	if ((*ptr = fopen(path, "w+")) == NULL) {
+		warn("%s: fopen", __func__);
+		if (unlink(path) == -1)
+			warn("%s: unlink", __func__);
+		return NULL;
+	}
+
+	return ptr;
+}
+
+
 
 /*---------------------------------------------------------------*
  *      caff.h                                                   *
@@ -429,19 +458,92 @@ caff_dump_info(struct caff *caff, FILE *stream)
 	(void)fprintf(stream, "-----------------------------\n");
 }
 
-struct frame *
-caff_get_frame(struct caff *caff, size_t index)
-{
-	if (index >= caff->caff_nframe) {
-		warnx("%s: frame index out of bounds", __func__);
-		return NULL;
-	}
-
-	return &caff->caff_frames[index];
-}
-
 void
 caff_gif_compress(struct caff *caff, FILE *out)
 {
-	warnx("%s: not yet implemented", __func__);
+	char                   *tmppath, delay[8], buf[BUFSIZ];
+	size_t                  tmppathlen, delaylen, i;
+	MagickWand             *wand;
+	FILE                   *tmp;
+
+	/* Get a temporary file */
+	tmppathlen = strlen(TMPPATT) + 1;
+	if ((tmppath = malloc(tmppathlen)) == NULL) {
+		warn("%s: malloc", __func__);
+		return;
+	}
+
+	/* Call in the old wizard */
+	MagickWandGenesis();
+	wand = NewMagickWand();
+
+	/* Build image list */
+	delaylen = sizeof delay;
+	for (i = 0; i < caff->caff_nframe; ++i) {
+		/* write jpeg to a tmp file */
+		if (_get_tmpfile(&tmp, tmppath, tmppathlen) == NULL) {
+			warnx("%s: failed to get tmp file", __func__);
+			return;
+		}
+		ciff_jpeg_compress(caff->caff_frames[i].fr_ciff, tmp);
+
+		/* set duration of frame */
+		if (snprintf(delay, delaylen, "%ld",
+		    caff->caff_frames[i].fr_dur / 10) >= delaylen)
+			warnx("%s: truncated delay string", __func__);
+		if (MagickSetOption(wand, "delay", delay)
+		    == MagickFalse) {
+			warnx("%s: failed to set frame delay",
+			    __func__);
+			return;
+		}
+
+		/* read frame */
+		if (MagickReadImage(wand, tmppath) == MagickFalse) {
+			warnx("%s: failed to read image", __func__);
+			return;
+		}
+		if (MagickSetImageFormat(wand, "gif") == MagickFalse) {
+			warnx("%s: failed to set image format",
+			    __func__);
+			return;
+		}
+
+		/* remove the tmp file */
+		if (unlink(tmppath) == -1)
+			warn("%s: unlink", __func__);
+	}
+
+	/* Images will be written starting from current iterator */
+	MagickResetIterator(wand);
+
+	/* Write image sequence to a single GIF in a tmp file */
+	if (_get_tmpfile(&tmp, tmppath, tmppathlen) == NULL) {
+		warnx("%s: failed to get tmp file", __func__);
+		return;
+	}
+	if (MagickWriteImages(wand, tmppath, MagickTrue) == MagickFalse)
+	{
+		warnx("%s: failed to write image", __func__);
+		return;
+	}
+
+	/* Write GIF to out file descriptor */
+	rewind(tmp);
+	while (fread(buf, 1, sizeof buf, tmp) > 0)
+		if (fwrite(buf, 1, sizeof buf, out) != sizeof buf) {
+			warn("%s: fwrite", __func__);
+			return;
+		}
+	if (ferror(tmp)) {
+		warnx("%s: ferror", __func__);
+	}
+
+	/* later, Gandalf */
+	wand = DestroyMagickWand(wand);
+
+	if (fclose(tmp) == EOF)
+		warn("%s: fclose", __func__);
+	if (unlink(tmppath) == -1)
+		warn("%s: unlink", __func__);
 }

@@ -7,6 +7,7 @@ MAN3            =
 SRCS            = caff.c cli.c
 OBJS            = ${SRCS:.c=.o}
 LIBS            = -ljpeg -lciff
+LIBS           += -lMagickWand-6.Q16 -lMagickCore-6.Q16
 
 CFLAGS         += -O2 -pipe
 CFLAGS         += -Wall
@@ -14,6 +15,9 @@ CFLAGS         += -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS         += -Wmissing-declarations
 CFLAGS         += -Wshadow -Wpointer-arith
 CFLAGS         += -Wsign-compare -Wcast-qual
+
+CFLAGS         += -DMAGICKCORE_QUANTUM_DEPTH=16
+CFLAGS         += -DMAGICKCORE_HDRI_ENABLE=0
 
 LDFLAGS        += ${LIBS}
 

@@ -71,16 +71,15 @@ main(int argc, char **argv)
 		caff_dump_info(caff, stderr);
 
 	if (iflag) {
-		if ((fr = caff_get_frame(caff, idx)) == NULL) {
-			errx(1, "failed to get frame");
-		}
+		if (idx >= caff->caff_nframe)
+			errx(1, "frame index out of bounds");
+		fr = &caff->caff_frames[idx];
 		if (vflag)
 			(void)fprintf(stderr, "Duration: %ld\n",
 			    fr->fr_dur);
 		ciff_jpeg_compress(fr->fr_ciff, out);
-	}
-
-	/* ciff_gif_compress(caff, out); */
+	} else
+		caff_gif_compress(caff, out);
 
 	if (fclose(out) == EOF) {
 		warnx("%s: fclose", __func__);
