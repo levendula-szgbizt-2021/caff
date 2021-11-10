@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,8 @@ static void             _usage(void);
 static void             _slurp(char **, size_t *, FILE *);
 static void             _dump(FILE *, char *, unsigned long);
 
+static void             _err(int eval, char *(*)(int), int,
+			    char const *fmt, ...);
 static char const       *_progname;
 
 
@@ -76,6 +79,36 @@ _dump(FILE *target, char *data, unsigned long len)
         if (fwrite(data, 1, len, target) < len)
                 err(1, "%s: fwrite", __func__);
 }
+
+static void
+_err(int eval, char *(*fn)(int), int eno, char const *fmt, ...)
+{
+        va_list ap;
+        size_t  fmtlen, seplen, estrlen;
+        char   *estr, *sep, *newfmt;
+
+        va_start(ap, fmt);
+
+        estr = fn(eno);
+        sep = ": ";
+
+        fmtlen = strlen(fmt);
+        seplen = strlen(sep);
+        estrlen = strlen(estr);
+
+        if ((newfmt = malloc(fmtlen + seplen + estrlen + 1)) == NULL)
+                err(1, "malloc");
+        (void)strncpy(newfmt, fmt, fmtlen);
+        newfmt[fmtlen] = '\0';
+        (void)strncat(newfmt, sep, seplen);
+        (void)strncat(newfmt, estr, estrlen);
+
+        verrx(eval, newfmt, ap);
+
+        va_end(ap);
+        free(newfmt);
+}
+
 
 int
 main(int argc, char **argv)
@@ -154,16 +187,21 @@ main(int argc, char **argv)
 		if (vflag)
 			(void)fprintf(stderr, "Duration: %llu\n",
 			    fr->fr_dur);
-		ciff_jpeg_compress(&output, &outlen, fr->fr_ciff);
+		if (ciff_jpeg_compress(&output, &outlen, fr->fr_ciff)
+		    == NULL)
+			_err(1, ciff_strerror, (int)cifferrno,
+			    "JPEG-compression failure");
+
 		_dump(out, (char *)output, outlen);
 	} else {
-		caff_gif_compress(&output, &outlen, caff);
+		if (caff_gif_compress(&output, &outlen, caff) == NULL)
+			_err(1, caff_strerror, (int)cafferrno,
+			    "GIF-compression failure");
 		_dump(out, (char *)output, outlen);
 	}
 
-	if (fclose(out) == EOF) {
-		warnx("%s: fclose", __func__);
-	}
+	if (fclose(out) == EOF)
+		warn("%s: fclose", __func__);
 	free(caff->caff_creator);
 	free(caff->caff_frames);
 	free(caff);
