@@ -1,6 +1,11 @@
 CAFF
 ====
 
+PREREQUISITES: You need to install libjpeg and ImageMagick (with
+magickwand and its headers) to build caff.
+You also need to have ciff installed to your system or in CFLAGS's
+include path.
+
 This simple C library implements a parser for the CAFF format described
 in docs/spec.txt.
 

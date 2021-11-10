@@ -1,0 +1,48 @@
+We have tested the code using the provided example files.
+All three have been handled well by the library.
+
+Only the first test file is included in the repository, due to the
+files' large size.
+
+This file (1.caff) was also used as an input to the instrumented fuzzer
+afl.
+
+------------------------------------------------------------------------
+
+Fuzzing results
+
+We have applied fuzzing-based testing to the code but there is not
+sufficient time to add the results to the repo...
+
+------------------------------------------------------------------------
+
+The code has been tested with valgrind for memory leaks.
+
+Some bugs were fixed in 403913e, which were simply due to the lack of a
+proper complex object-freeing API.
+
+Still, Valgrind reports a number of problems which all seem to be
+associated with the ImageMagick (specifically, the MagickWand) library.
+We had no choice but to ignore these.
+
+Valgrind's logs have been placed in this directory:
+
+	valgrind-short.log is the output of
+
+		valgrind --undef-value-errors=no \
+		    --leak-check=full \
+		    --log-file=valgrind-short.log -- \
+		    caff -vo/dev/null 1.caff
+
+	valgrind-full.log is the output of
+
+		valgrind --undef-value-errors=no \
+		    --leak-check=full \
+		    --show-leak-kinds=all \
+		    --log-file=valgrind-full.log -- \
+		    caff -vo/dev/null 1.caff
+
+The former shows that the library does not have any serious memory-leak
+problems. The latter shows a plethora of errors caused by ImageMagick.
+
+2021-11-10
