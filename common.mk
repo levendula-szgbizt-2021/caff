@@ -7,7 +7,7 @@ MAN3            =
 SRCS            = caff.c cli.c
 HDRS            = caff.h
 OBJS            = ${SRCS:.c=.o}
-LIBS            = -ljpeg -lciff
+LIBS            = -lciff -ljpeg
 LIBS           += -lMagickWand-6.Q16 -lMagickCore-6.Q16
 
 CFLAGS         += -O2 -pipe -pedantic -std=c99
