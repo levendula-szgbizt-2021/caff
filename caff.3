@@ -1,0 +1,166 @@
+.\" Copyright (c) 2021, Levendula <levendula-szgbizt@bp99.eu>
+.\" Author: Levendula team
+.\"
+.\" Permission to use, copy, modify, and/or distribute this software for
+.\" any purpose with or without fee is hereby granted, provided that the
+.\" above copyright notice and this permission notice appear in all
+.\" copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+.\" WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+.\" AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+.\" DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+.\" OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+.\" TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+.\" PERFORMANCE OF THIS SOFTWARE.
+.Dd November 10, 2021
+.\" ----------------------------------------------------------------
+.Dt CIFF 3
+.Os
+.\" ----------------------------------------------------------------
+.Sh NAME
+.Nm ciff
+.Nd CrySyS Image File Format parser and converter library
+.\" ----------------------------------------------------------------
+.Sh SYNOPSIS
+.In ciff.h
+.Pp
+.Fd enum caff_error;
+.Fd struct frame;
+.Fd struct caff;
+.Pp
+.Fd enum caff_error cifferrno;
+.Pp
+.Ft struct caff *
+.Fn caff_parse "struct caff *dst" "char *in" "size_t len"
+.Ft void
+.Fn caff_dump_info "FILE *stream" "struct ciff *caff"
+.Ft unsigned char **
+.Fn caff_gif_compress "unsigned char **dst" "size_t *len" \
+    "struct caff *caff"
+.Ft char *
+.Fn caff_strerror "enum caff_error err"
+.Ft void
+.Fn caff_destroy "struct caff *ciff"
+.\" ----------------------------------------------------------------
+.Sh DESCRIPTION
+The
+.Nm
+library provides structures and functions to handle
+.Em caff
+files.
+.Pp
+THERE IS NOT ENOUGH TIME TO FINISH THIS MANPAGE.
+.\"The main structure that describes the data of a ciff file is
+.\".Vt struct caff
+.\"which contains the following members:
+.\".Bl -ohang -offset indent
+.\".It Fa "unsigned long long ciff_width"
+.\"the width of the image in pixels
+.\".It Fa "unsigned long long ciff_height"
+.\"the height of the image in pixels
+.\".It Fa "char *ciff_cap"
+.\"the image caption (NUL-terminated string)
+.\".It Fa "char **ciff_tags"
+.\"image tags (NULL-terminated array of NUL-terminated strings)
+.\".It Fa "struct pixel *ciff_content"
+.\"image pixels (row by row, top to bottom)
+.\".El
+.\".Pp
+.\"Each pixel is stored in a structure
+.\".Vt "struct pixel",
+.\"which has the following three fields:
+.\".Bl -ohang -offset indent
+.\".It Fa "unsigned_char px_r"
+.\"the red colour value (0..255)
+.\".It Fa "unsigned_char px_g"
+.\"the green colour value (0..255)
+.\".It Fa "unsigned_char px_b"
+.\"the blue colour value (0..255)
+.\".El
+.\".Pp
+.\"You can parse a new ciff image from data pointed to by a
+.\".Fa char *
+.\"using
+.\".Fn "ciff_parse",
+.\"but the destination must be pre-allocated and
+.\".Fn "free"
+.\"\'d by the caller.
+.\".Pp
+.\".Fn ciff_dump_header
+.\"and
+.\".Fn ciff_dump_pixels
+.\"are indented for debugging purposes: they dump the header and the body
+.\"(contents) of the ciff, respectively, to the given stream.
+.\".Pp
+.\"To get an image which can be displayed in conventional viewers, use
+.\".Fn "ciff_jpeg_compress".
+.\"The value of
+.\".Fa dst
+.\"is ignored, and sufficient memory is allocated to the memory pointed to
+.\"by it. It is the responsibility of the caller to later
+.\".Fn free
+.\"this memory.
+.\"The value of
+.\".Fa dst
+.\"is returned on success, or
+.\".Fa "NULL",
+.\"in case of a failure.
+.\"After a successful call, the data pointed to by
+.\".Fa *dst
+.\"is a JPEG-compressed image that is equivalent to the ciff's contents and
+.\".Fa len
+.\"contains the length of the image data.
+.\"See
+.\".Pa cli.c
+.\"for an example on how this function can be used.
+.\".Pp
+.\"Do not forget to properly destroy your
+.\".Fa "struct ciff"
+.\"objects. It is recommended to use the
+.\".Fn ciff_destroy
+.\"function for this purpose.
+.\".Pp
+.\"Error handling in the
+.\".Nm
+.\"library is implemented using an errno-like mechanism; see
+.\".Xr intro 2
+.\"for more details on the standard errno. If any library call is
+.\"unsuccessful, a special value (eg NULL) is returned, and the designated
+.\"global variable
+.\".Fa cifferrno
+.\"is set to a value describing the error. To get a textual description of
+.\"the error, use
+.\".Fn "ciff_strerror",
+.\"which is akin to the standard
+.\".Xr strerror 3
+.\"function.
+.\".Fa cifferrno
+.\"is never reset and so it is only meaningful to check its value if an
+.\"error has been indicated by a function’s return value.
+.\" ----------------------------------------------------------------
+.Sh SEE ALSO
+.Xr caff 1
+.\" ----------------------------------------------------------------
+.Sh STANDARDS
+The
+.Nm
+library conforms to
+.St -isoC-99 .
+.\" ----------------------------------------------------------------
+.Sh HISTORY
+The
+.Nm
+library was written by the
+.Em Levendula
+team as part of an assignment submission for the Computer Security
+(BMEVIHIMA06) course in 2021.
+.\" ----------------------------------------------------------------
+.Sh AUTHORS
+.An Levendula team Aq Mt levendula-szgbizt@bp99.eu
+.\" ----------------------------------------------------------------
+.Sh CAVEATS
+The
+.Nm
+library is not and does not attempt to be thread-safe.

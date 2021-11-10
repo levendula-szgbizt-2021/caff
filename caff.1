@@ -1,0 +1,73 @@
+.\" Copyright (c) 2021, Levendula <levendula-szgbizt@bp99.eu>
+.\" Author: Levendula team
+.\"
+.\" Permission to use, copy, modify, and/or distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.Dd November 10, 2021
+.Dt CIFF
+.Os
+.Sh NAME
+.Nm caff
+.Nd parse and convert CrySyS Animated Image File Format files
+.Sh SYNOPSIS
+.Nm ciff
+.Op Fl hv
+.Op Fl i Ar index
+.Op Fl o Ar output
+.Op input
+.Sh DESCRIPTION
+The
+.Nm
+utility parses animated image files encoded in the CrySyS Animated Image
+File Format and converts them to more conventional image formats, such
+as GIF. The file to parse is either read from
+.Ar input
+(which can be '-', indicating stdin) or, if not specified, from the
+standard input.
+.Pp
+The options are as follows:
+.Bl -tag -width tenletters
+.It Fl o Ar index
+Instead of generating a GIF, write the index-th frame of the animation
+to a JPEG file.
+.It Fl o Ar output
+Write output to
+.Ar output
+instead of the standard output.
+.It Fl h
+Print usage.
+.It Fl v
+Be more verbose. This dumps information parsed from the CAFF to the
+standard error output in a pretty format.
+.Sh RETURN VALUES
+.Ex -std ciff
+It may fail for one of the following reasons:
+.Pp
+.Bl -bullet -compact
+.It
+The input file is invalid or unparseable.
+.It
+The program ran out of memory or was denied access to writing to the
+output.
+.El
+.Sh SEE ALSO
+.Xr caff 3
+.Xr ciff 1
+.Sh HISTORY
+The
+.Nm
+utility was written by the
+.Em Levendula
+team as part of an assignment submission for the Computer Security
+(BMEVIHIMA06) course in 2021.
+.Sh AUTHORS
+.An Levendula team Aq Mt levendula-szgbizt@bp99.eu
