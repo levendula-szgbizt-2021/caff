@@ -2,73 +2,109 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-#include <wand/MagickWand.h>
 #include <ciff.h>
+#include <wand/MagickWand.h>
 
 #include "caff.h"
 
-#define MAGIC "CAFF"
-#define MAGIC_LENGTH 4
+#define MAGIC           "CAFF"
+#define MAGIC_LENGTH    4
 
-#define TMPPATT "/tmp/caff.XXXXXXXXXX"
-#define TMPPATTLEN 21
+#define ID_HEADER       0x01
+#define ID_CREDS        0x02
+#define ID_ANIM         0x03
 
-struct _caff_block {
-	char    cb_id;
-	long    cb_len;
-	char   *cb_data;
+/* Get a 16-bit little endian integer value */
+#define INT16(x) (                                      \
+          ((unsigned long long)((x)[0] & 0xff) << 0)    \
+        | ((unsigned long long)((x)[1] & 0xff) << 8)    \
+)
+
+/* Get a 64-bit little endian integer value */
+#define INT64(x) (                                      \
+          ((unsigned long long)((x)[0] & 0xff) << 0)    \
+        | ((unsigned long long)((x)[1] & 0xff) << 8)    \
+        | ((unsigned long long)((x)[2] & 0xff) << 16)   \
+        | ((unsigned long long)((x)[3] & 0xff) << 24)   \
+        | ((unsigned long long)((x)[4] & 0xff) << 32)   \
+        | ((unsigned long long)((x)[5] & 0xff) << 40)   \
+        | ((unsigned long long)((x)[6] & 0xff) << 48)   \
+        | ((unsigned long long)((x)[7] & 0xff) << 56)   \
+)
+
+/*
+ * Parse a 64-bit integer from the input, advance input pointer by 8,
+ * and decrease rem counter by 8.
+ */
+#define PARSE64(v, in, len)                             \
+    if ((len) < 8) {                                    \
+        return NULL;                        /* FIXME */ \
+    }                                                   \
+    v = INT64(in);                                      \
+    in += 8; len -= 8;                                  \
+
+/*
+ * Parse a 16-bit integer from the input, advance input pointer by 2,
+ * and decrease rem counter by 2.
+ */
+#define PARSE16(v, in, len)                             \
+    if ((len) < 2) {                                    \
+        return NULL;                        /* FIXME */ \
+    }                                                   \
+    v = INT16(in);                                      \
+    in += 2; len -= 2;                                  \
+
+/*
+ * Parse a 8-bit unsigned integer from the input, increment input
+ * pointer, decrement rem counter.
+ */
+#define PARSEU8(v, in, len)                             \
+    if ((len) < 1) {                                    \
+        return NULL;                        /* FIXME */ \
+    }                                                   \
+    v = (unsigned char)(*in);                           \
+    ++in; --len;                                        \
+
+
+struct _date {
+	unsigned short          dt_year;
+	unsigned char           dt_month;
+	unsigned char           dt_day;
+	unsigned char           dt_hour;
+	unsigned char           dt_minute;
 };
 
-struct _caff_header {
-	long    ch_hsize;
-	long    ch_nframe;
+struct _block {
+	unsigned char           blk_id;
+	unsigned long long      blk_len;
+	char                   *blk_data;
 };
 
-struct _caff_credits {
-	short   cc_year;
-	char    cc_month;
-	char    cc_day;
-	char    cc_hour;
-	char    cc_minute;
-	long    cc_creatorlen;
-	char   *cc_creator;
-};
-
-static size_t                   curframe;
+static unsigned long long       curframe;
 static int                      seen_credits;
 
-static size_t const             creditsiz
-				    = sizeof (struct _caff_credits);
-static size_t const             framesiz = sizeof (struct frame);
-
 static int                      _verify_magic(char *);
-static int                      _verify_header(struct _caff_header *);
-static int                      _verify_credits_date(
-				    struct _caff_credits *);
-static int                      _verify_credits(struct _caff_credits *);
-static int                      _verify_frame(struct frame *);
 
-static struct _caff_block *     _read_block(struct _caff_block *,
-				    FILE *);
+static struct _block *          _read_block(struct _block *,
+				    char **, size_t *);
+static struct caff *            _parse_block(struct caff *,
+				    struct _block *);
+static struct caff *            _parse_header(struct caff *,
+				    char **, unsigned long long);
+static struct caff *            _parse_credits(struct caff *,
+				    char **, unsigned long long);
+static struct caff *            _parse_frame(struct caff *,
+				    char **, unsigned long long);
 
-static int                      _parse_header(struct caff *,
-				    struct _caff_header *);
-static int                      _parse_credits(struct caff *,
-				    struct _caff_credits *);
-static int                      _parse_frame(struct caff *,
-				    struct frame *);
-static int                      _parse_block(struct caff *,
-				    struct _caff_block *);
-
-FILE **                         _get_tmpfile(FILE **, char*, size_t);
+static size_t                   _print_separator(FILE *, char, size_t);
 
 /* caff.h */
-struct caff *                   caff_parse(struct caff *, FILE *);
-void                            caff_dump_info(struct caff *, FILE *);
-void                            caff_gif_compress(struct caff *,
-				    FILE *);
+struct caff *                   caff_parse(struct caff *, char *,
+				    size_t);
+void                            caff_dump_info(FILE *, struct caff *);
+void                            caff_gif_compress(unsigned char **,
+				    size_t *, struct caff *);
 
 static int
 _verify_magic(char *magic)
@@ -77,37 +113,25 @@ _verify_magic(char *magic)
 }
 
 static int
-_verify_header(struct _caff_header *hdr)
+_verify_date(struct _date *date)
 {
-	if (hdr->ch_nframe < 0) {
-		warnx("%s: number of frames must not be negative",
-		    __func__);
-		return 0;
-	}
-
-	return 1;
-}
-
-static int
-_verify_credits_date(struct _caff_credits *cred)
-{
-	if (cred->cc_year < 1900) {
+	if (date->dt_year < 1900) {
 		warnx("%s: year must be greater than 1900", __func__);
 		return 0;
 	}
-	if (cred->cc_month < 1 || cred->cc_month > 12) {
+	if (date->dt_month < 1 || date->dt_month > 12) {
 		warnx("%s: month must be in [1,12]", __func__);
 		return 0;
 	}
-	if (cred->cc_day < 1 || cred->cc_day > 31) {
+	if (date->dt_day < 1 || date->dt_day > 31) {
 		warnx("%s: day must be in [1,31]", __func__);
 		return 0;
 	}
-	if (cred->cc_hour < 0 || cred->cc_hour > 23) {
+	if (date->dt_hour > 23) {
 		warnx("%s: hour must be in [0,23]", __func__);
 		return 0;
 	}
-	if (cred->cc_minute < 0 || cred->cc_minute > 59) {
+	if (date->dt_minute > 59) {
 		warnx("%s: minute must be in [0,59]", __func__);
 		return 0;
 	}
@@ -115,258 +139,190 @@ _verify_credits_date(struct _caff_credits *cred)
 	return 1;
 }
 
-static int
-_verify_credits(struct _caff_credits *cred)
+static struct _block *
+_read_block(struct _block *dst, char **in, size_t *len)
 {
-	if (cred->cc_creatorlen < 0) {
-		warnx("%s: creator length must not be negative",
-		    __func__);
-		return 0;
-	}
-	if (!_verify_credits_date(cred)) {
-		warnx("%s: invalid date in credits", __func__);
-		return 0;
-	}
-
-	return 1;
-}
-
-static int
-_verify_frame(struct frame *fr)
-{
-	if (fr->fr_dur < 0) {
-		warnx("%s: frame duration must not be negative",
-		    __func__);
-		return 0;
-	}
-
-	return 1;
-}
-
-static struct _caff_block *
-_read_block(struct _caff_block *dst, FILE *stream)
-{
-	dst->cb_id = getc(stream);
-	if (fread(&dst->cb_len, sizeof (long), 1, stream) != 1) {
-		warnx("%s: fread", __func__);
+	if (len == 0)
 		return NULL;
-	}
-	if (dst->cb_len < 0) {
-		warnx("%s: block length must not be negative", __func__);
-		return NULL;
-	}
 
-	if ((dst->cb_data = malloc(dst->cb_len)) == NULL) {
+	dst->blk_id = *(*in)++;
+	--*len;
+
+	PARSE64(dst->blk_len, *in, *len)
+
+	if ((dst->blk_data = malloc(dst->blk_len)) == NULL) {
 		warn("%s: malloc", __func__);
 		return NULL;
 	}
-	/*
-	 * Casting to size_t is okay, since len >= 0 and long always
-	 * fits in size_t.
-	 */
-	if (fread(dst->cb_data, 1, dst->cb_len, stream)
-	    != (size_t)dst->cb_len)
-	{
-		warnx("%s: fread", __func__);
+	if (*len < dst->blk_len) {
+		warnx("%s: unexpected end", __func__);
 		return NULL;
 	}
+	(void)memcpy(dst->blk_data, *in, dst->blk_len);
+	*in += dst->blk_len;
+	*len -= dst->blk_len;
 
 	return dst;
 }
 
-static int
-_parse_header(struct caff *caff, struct _caff_header *hdr)
+static struct caff *
+_parse_header(struct caff *dst, char **in, unsigned long long len)
 {
-	if (!_verify_header(hdr)) {
-		warnx("%s: invalid header block", __func__);
-		return 0;
-	}
+	if (len == 0)
+		return NULL;
 
-	caff->caff_hsize = hdr->ch_hsize;
-	caff->caff_nframe = hdr->ch_nframe;
-	if ((caff->caff_frames
-	    = malloc(caff->caff_nframe * sizeof (struct frame)))
-	    == NULL) {
+	PARSE64(dst->caff_hsize, *in, len)
+	PARSE64(dst->caff_nframe, *in, len)
+
+	if ((dst->caff_frames
+	    = malloc(dst->caff_nframe * sizeof (struct frame))) == NULL)
+	{
 		warn("%s: malloc", __func__);
 		return 0;
 	}
 
-	return 1;
+	if (len > 0)
+		warnx("%s: trailing data", __func__);
+
+	return dst;
 }
 
-static int
-_parse_credits(struct caff *caff, struct _caff_credits *cred)
+static struct caff *
+_parse_credits(struct caff *dst, char **in, unsigned long long len)
 {
-	if (!_verify_credits(cred)) {
-		warnx("%s: invalid credits block", __func__);
-		return 0;
+	struct _date            dt;
+	unsigned long long      creatorlen;
+
+	if (len == 0)
+		return NULL;
+
+	PARSE16(dt.dt_year, *in, len)
+	PARSEU8(dt.dt_month, *in, len)
+	PARSEU8(dt.dt_day, *in, len)
+	PARSEU8(dt.dt_hour, *in, len)
+	PARSEU8(dt.dt_minute, *in, len)
+	PARSE64(creatorlen, *in, len)
+
+	if (!_verify_date(&dt)) {
+		warnx("%s: invalid date", __func__);
+		return NULL;
 	}
+	dst->caff_date.tm_year = dt.dt_year - 1900;
+	dst->caff_date.tm_mon = dt.dt_month - 1;
+	dst->caff_date.tm_mday = dt.dt_day;
+	dst->caff_date.tm_hour = dt.dt_hour;
+	dst->caff_date.tm_min = dt.dt_minute;
 
-	caff->caff_date.tm_year = cred->cc_year - 1900;
-	caff->caff_date.tm_mon = cred->cc_month - 1;
-	caff->caff_date.tm_mday = cred->cc_day;
-	caff->caff_date.tm_hour = cred->cc_hour;
-	caff->caff_date.tm_min = cred->cc_minute;
+	if ((dst->caff_creator = malloc(creatorlen + 1)) == NULL) {
+		warn("%s: malloc", __func__);
+		return NULL;
+	}
+	if (len < creatorlen) {
+		warnx("%s: unexpected end", __func__);
+		return NULL;
+	}
+	(void)strncpy(dst->caff_creator, *in, creatorlen);
+	dst->caff_creator[creatorlen] = '\0';
+	len -= creatorlen;
 
-	caff->caff_creator = cred->cc_creator;
+	if (len > 0)
+		warnx("%s: trailing data", __func__);
 
-	return 1;
+	return dst;
 }
 
-static int
-_parse_frame(struct caff *caff, struct frame *fr)
+static struct caff *
+_parse_frame(struct caff *dst, char **in, unsigned long long len)
 {
-	if (!_verify_frame(fr)) {
-		warnx("%s: invalid animation block", __func__);
-		return 0;
-	}
+	if (len == 0)
+		return NULL;
 
-	caff->caff_frames[curframe].fr_dur = fr->fr_dur;
-	if (curframe >= (size_t)caff->caff_nframe) {
+	PARSE64(dst->caff_frames[curframe].fr_dur, *in, len)
+
+	if (curframe >= dst->caff_nframe) {
 		warnx("%s: too many frames", __func__);
 		/* tolerated, but ignored */
-		return 1;
+		return dst;
 	}
 
-	caff->caff_frames[curframe].fr_ciff = fr->fr_ciff;
+	if ((dst->caff_frames[curframe].fr_ciff
+	     = malloc(sizeof (struct ciff))) == NULL) {
+		warn("%s: malloc", __func__);
+		return NULL;
+	}
 
+	/* TODO unsigned long long <-> size_t */
+	if (ciff_parse(dst->caff_frames[curframe].fr_ciff, *in, &len)
+	    == NULL) {
+		warnx("%s: failed to parse frame as ciff", __func__);
+		return NULL;
+	}
 	++curframe;
-	return 1;
+
+	if (len > 0)
+		warnx("%s: trailing data", __func__);
+
+	return dst;
 }
 
-static int
-_parse_block(struct caff *caff, struct _caff_block *blk)
+struct caff *
+_parse_block(struct caff *caff, struct _block *blk)
 {
-	size_t                  len;
-	struct _caff_credits   *cred;
-	struct frame           *fr;
-	FILE                   *datastream;
-	char                   *p;
-
-	switch (blk->cb_id) {
-	case 0x01:      /* header */
+	switch (blk->blk_id) {
+	case ID_HEADER:
 		warnx("%s: ignoring superfluous header", __func__);
 		break;
 
-	case 0x02:      /* credits */
+	case ID_CREDS:
 		if (seen_credits) {
 			warnx("%s: ignoring superfluous credits",
 			    __func__);
 			break;
 		}
-		if ((cred = malloc(creditsiz)) == NULL) {
-			warn("%s: malloc", __func__);
-			return 0;
-		}
-		/* Copy fixed length fields (all except creator) */
-		p = blk->cb_data;
-		(void)memcpy(&cred->cc_year, p, sizeof (short));
-		p += sizeof (short);
-		(void)memcpy(&cred->cc_month, p++, 1);
-		(void)memcpy(&cred->cc_day, p++, 1);
-		(void)memcpy(&cred->cc_hour, p++, 1);
-		(void)memcpy(&cred->cc_minute, p++, 1);
-		(void)memcpy(&cred->cc_creatorlen, p, sizeof (long));
-		p += sizeof (long);
-		//(void)memcpy(cred, blk->cb_data,
-		//    creditsiz - sizeof (char *));
-		//blk->cb_data += creditsiz - sizeof (char *);
-		/* the +1 is for NUL-termination */
-		len = cred->cc_creatorlen + 1;
-		if ((cred->cc_creator = malloc(len)) == NULL) {
-			warn("%s: malloc", __func__);
-			free(cred);
-			return 0;
-		}
-		if (strlcpy(cred->cc_creator, p, len) >= len)
-			warnx("%s: truncated creator string", __func__);
-			/* we tolerate this */
-		if (!_parse_credits(caff, cred)) {
-			warnx("%s: failed to parse credits", __func__);
-			free(cred->cc_creator);
-			free(cred);
-			return 0;
+		if (_parse_credits(caff, &blk->blk_data, blk->blk_len)
+		    == NULL) {
+			warnx("%s: failed to parse credits block",
+			    __func__);
+			return NULL;
 		}
 		seen_credits = 1;
 		break;
 
-	case 0x03:      /* animation / frame */
-		if ((fr = malloc(framesiz)) == NULL) {
-			warn("%s: malloc", __func__);
-			return 0;
-		}
-		/* Copy fixed length fields (all except ciff) */
-		p = blk->cb_data;
-		(void)memcpy(&fr->fr_dur, p,
-		    framesiz - sizeof (struct ciff *));
-		p += framesiz - sizeof (struct ciff *);
-		/* -8 : -8 for length field */
-		/* XXX this goes against the spec !!! */
-		if ((datastream
-		    = fmemopen(p, blk->cb_len - 8, "r"))
+	case ID_ANIM:
+		if (_parse_frame(caff, &blk->blk_data, blk->blk_len)
 		    == NULL) {
-			warn("%s: fmemopen", __func__);
-			return 0;
-		}
-		if ((fr->fr_ciff = malloc(sizeof (struct ciff)))
-		    == NULL) {
-			warn("%s: malloc", __func__);
-			return 0;
-		}
-		/*
-		 * cast to size_t is okay, since nframe >= 0 and long
-		 * always fits in size_t
-		 */
-		if (ciff_parse(fr->fr_ciff, datastream) == NULL) {
-			warnx("%s: failed to parse data as CIFF",
-			    __func__);
-			goto err_fr;
-		}
-		if (!_parse_frame(caff, fr)) {
 			warnx("%s: failed to parse frame", __func__);
-			goto err_fr;
+			return NULL;
 		}
-
-		free(fr);
 		break;
-
-err_fr:
-		free(fr->fr_ciff);
-		free(fr);
-		if (fclose(datastream) != 0)
-			warn("%s: fclose", __func__);
-		return 0;
 
 	default:
 		warnx("%s: unrecognized block ID %d", __func__,
-		    blk->cb_id);
-		return 0;
-	}
-
-	return 1;
-}
-
-FILE **
-_get_tmpfile(FILE **ptr, char *path, size_t len) {
-	int     fd;
-
-	(void)strncpy(path, TMPPATT, len - 1);
-	path[len - 1] = '\0';
-
-	if ((fd = mkstemp(path)) == -1) {
-		warn("%s: mkstemp", __func__);
-		return NULL;
-	}
-	if ((*ptr = fopen(path, "w+")) == NULL) {
-		warn("%s: fopen", __func__);
-		if (unlink(path) == -1)
-			warn("%s: unlink", __func__);
+		    blk->blk_id);
 		return NULL;
 	}
 
-	return ptr;
+	return caff;
 }
 
+static size_t
+_print_separator(FILE *stream, char ch, size_t len)
+{
+        size_t  i;
+
+        for (i = 0; i < len; ++i)
+                if (putc(ch, stream) == EOF) {
+                        //cifferno = CIFF_EERRNO;
+                        return i;
+                }
+
+        if (putc('\n', stream) == EOF) {
+                //cifferno = CIFF_EERRNO;
+                return i;
+        }
+
+        return i + 1;
+}
 
 
 /*---------------------------------------------------------------*
@@ -374,13 +330,12 @@ _get_tmpfile(FILE **ptr, char *path, size_t len) {
  *---------------------------------------------------------------*/
 
 struct caff *
-caff_parse(struct caff *dst, FILE *stream)
+caff_parse(struct caff *dst, char *in, size_t len)
 {
-	char                    c;
-	struct _caff_block     *blk;
-	struct _caff_header    *hdr;
+	struct _block     *blk;
+	char              *p;
 
-	if ((blk = malloc(sizeof (struct _caff_block))) == NULL) {
+	if ((blk = malloc(sizeof (struct _block))) == NULL) {
 		warn("%s: malloc", __func__);
 		return NULL;
 	}
@@ -391,45 +346,42 @@ caff_parse(struct caff *dst, FILE *stream)
 	 * While not explicitly stated in the spec, we ignore any
 	 * further header blocks that may appear in the file.
 	 */
-	if (_read_block(blk, stream) == NULL) {
+	if (_read_block(blk, &in, &len) == NULL) {
 		warnx("%s: failed to read block", __func__);
+		free(blk);
 		return NULL;
 	}
-	if (blk->cb_id != 0x01) {
+	p = blk->blk_data;
+	if (blk->blk_id != ID_HEADER) {
 		warnx("%s: first block must be a header", __func__);
+		free(blk);
 		return NULL;
 	}
-	if ((hdr = malloc(sizeof (struct _caff_header))) == NULL) {
-		warn("%s: malloc", __func__);
-		return NULL;
-	}
-	if (!_verify_magic(blk->cb_data)) {
+	if (!_verify_magic(blk->blk_data)) {
 		warnx("%s: invalid magic", __func__);
+		free(blk);
 		return NULL;
 	}
-	blk->cb_data += MAGIC_LENGTH;
-	(void)memcpy(hdr, blk->cb_data, sizeof (struct _caff_header));
-	if (!_parse_header(dst, hdr)) {
-		warnx("%s: failed to parse header", __func__);
-		free(hdr);
+	blk->blk_data += MAGIC_LENGTH; blk->blk_len -= MAGIC_LENGTH;
+	if (_parse_header(dst, &blk->blk_data, blk->blk_len) == NULL) {
+		warnx("%s: failed to read header", __func__);
+		free(blk);
 		return NULL;
 	}
-	free(hdr);
+	free(p);
 
 	/* Parse blocks */
-	while ((c = fgetc(stream)) != EOF) {
-		if (ungetc(c, stream) == EOF) {
-			warnx("%s: ungetc", __func__);
-			return NULL;
-		}
-		if (_read_block(blk, stream) == NULL) {
+	while (len > 0) {
+		if (_read_block(blk, &in, &len) == NULL) {
 			warnx("%s: failed to read block", __func__);
+			free(blk);
 			return NULL;
 		}
-		if (!_parse_block(dst, blk))
+		p = blk->blk_data;
+		if (_parse_block(dst, blk) == NULL)
 			warnx("%s: failed to parse a block", __func__);
 			/* tolerate */
-		free(blk->cb_data);
+		free(p);
 	}
 
 	free(blk);
@@ -437,7 +389,7 @@ caff_parse(struct caff *dst, FILE *stream)
 }
 
 void
-caff_dump_info(struct caff *caff, FILE *stream)
+caff_dump_info(FILE *stream, struct caff *caff)
 {
 	char    dtbuf[BUFSIZ];
 
@@ -447,31 +399,24 @@ caff_dump_info(struct caff *caff, FILE *stream)
 		return;
 	}
 
-	(void)fprintf(stream, "-----------------------------\n");
-	(void)fprintf(stream, "Header size:\t%ld\n",
+	(void)_print_separator(stream, '-', 64);
+	(void)fprintf(stream, "Header size:\t%llu\n",
 	    caff->caff_hsize);
-	(void)fprintf(stream, "Frame count:\t%ld\n",
+	(void)fprintf(stream, "Frame count:\t%llu\n",
 	    caff->caff_nframe);
 	(void)fprintf(stream, "Creation date:\t%s\n", dtbuf);
 	(void)fprintf(stream, "Creator name:\t%s\n",
 	    caff->caff_creator);
-	(void)fprintf(stream, "-----------------------------\n");
+	(void)_print_separator(stream, '-', 64);
 }
 
 void
-caff_gif_compress(struct caff *caff, FILE *out)
+caff_gif_compress(unsigned char **out, size_t *len, struct caff *caff)
 {
-	char                   *tmppath, delay[8], buf[BUFSIZ];
-	size_t                  tmppathlen, delaylen, i;
+	char                   *jpeg, delay[BUFSIZ];
+	size_t                  jpegsize, i;
+	int                     delaylen;
 	MagickWand             *wand;
-	FILE                   *tmp;
-
-	/* Get a temporary file */
-	tmppathlen = strlen(TMPPATT) + 1;
-	if ((tmppath = malloc(tmppathlen)) == NULL) {
-		warn("%s: malloc", __func__);
-		return;
-	}
 
 	/* Call in the old wizard */
 	MagickWandGenesis();
@@ -480,15 +425,12 @@ caff_gif_compress(struct caff *caff, FILE *out)
 	/* Build image list */
 	delaylen = sizeof delay;
 	for (i = 0; i < caff->caff_nframe; ++i) {
-		/* write jpeg to a tmp file */
-		if (_get_tmpfile(&tmp, tmppath, tmppathlen) == NULL) {
-			warnx("%s: failed to get tmp file", __func__);
-			return;
-		}
-		ciff_jpeg_compress(caff->caff_frames[i].fr_ciff, tmp);
+		/* get jpeg image from ciff */
+		ciff_jpeg_compress((unsigned char **)&jpeg, &jpegsize,
+		    caff->caff_frames[i].fr_ciff);
 
 		/* set duration of frame */
-		if (snprintf(delay, delaylen, "%ld",
+		if (snprintf(delay, delaylen, "%llu",
 		    caff->caff_frames[i].fr_dur / 10) >= delaylen)
 			warnx("%s: truncated delay string", __func__);
 		if (MagickSetOption(wand, "delay", delay)
@@ -499,7 +441,8 @@ caff_gif_compress(struct caff *caff, FILE *out)
 		}
 
 		/* read frame */
-		if (MagickReadImage(wand, tmppath) == MagickFalse) {
+		if (MagickReadImageBlob(wand, jpeg, jpegsize)
+		    == MagickFalse) {
 			warnx("%s: failed to read image", __func__);
 			return;
 		}
@@ -508,42 +451,15 @@ caff_gif_compress(struct caff *caff, FILE *out)
 			    __func__);
 			return;
 		}
-
-		/* remove the tmp file */
-		if (unlink(tmppath) == -1)
-			warn("%s: unlink", __func__);
 	}
 
 	/* Images will be written starting from current iterator */
 	MagickResetIterator(wand);
-
-	/* Write image sequence to a single GIF in a tmp file */
-	if (_get_tmpfile(&tmp, tmppath, tmppathlen) == NULL) {
-		warnx("%s: failed to get tmp file", __func__);
-		return;
-	}
-	if (MagickWriteImages(wand, tmppath, MagickTrue) == MagickFalse)
-	{
+	if ((*out = MagickGetImagesBlob(wand, len)) == NULL) {
 		warnx("%s: failed to write image", __func__);
 		return;
 	}
 
-	/* Write GIF to out file descriptor */
-	rewind(tmp);
-	while (fread(buf, 1, sizeof buf, tmp) > 0)
-		if (fwrite(buf, 1, sizeof buf, out) != sizeof buf) {
-			warn("%s: fwrite", __func__);
-			return;
-		}
-	if (ferror(tmp)) {
-		warnx("%s: ferror", __func__);
-	}
-
 	/* later, Gandalf */
 	wand = DestroyMagickWand(wand);
-
-	if (fclose(tmp) == EOF)
-		warn("%s: fclose", __func__);
-	if (unlink(tmppath) == -1)
-		warn("%s: unlink", __func__);
 }
