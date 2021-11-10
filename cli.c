@@ -28,7 +28,7 @@ static void
 _usage(void)
 {
 	(void)fprintf(stderr,
-	    "usage: %s [-dhv] [-i index] [-o output]\n", _progname);
+	    "usage: %s [-hv] [-i index] [-o output]\n", _progname);
 	exit(1);
 }
 
