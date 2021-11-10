@@ -176,8 +176,14 @@ main(int argc, char **argv)
 		err(1, "could not allocate memory");
 
 	_slurp(&input, &len, in);
-	if (caff_parse(caff, input, len) == NULL)
+	if (fclose(in) == EOF)
+		warn("fclose");
+	if (caff_parse(caff, input, len) == NULL) {
+		free(caff);
 		errx(1, "parse failure");
+	}
+	free(input);
+
 	if (vflag)
 		caff_dump_info(stderr, caff);
 
@@ -185,9 +191,12 @@ main(int argc, char **argv)
 		if (idx >= caff->caff_nframe)
 			errx(1, "frame index out of bounds");
 		fr = &caff->caff_frames[idx];
+
 		if (vflag)
 			(void)fprintf(stderr, "Duration: %llu\n",
 			    fr->fr_dur);
+
+		output = NULL;
 		if (ciff_jpeg_compress(&output, &outlen, fr->fr_ciff)
 		    == NULL)
 			_err(1, ciff_strerror, (int)cifferrno,
@@ -200,11 +209,10 @@ main(int argc, char **argv)
 			    "GIF-compression failure");
 		_dump(out, (char *)output, outlen);
 	}
-
 	if (fclose(out) == EOF)
-		warn("%s: fclose", __func__);
-	free(caff->caff_creator);
-	free(caff->caff_frames);
-	free(caff);
+		warn("fclose");
+	free(output);
+
+	caff_destroy(caff);
 	return 0;
 }

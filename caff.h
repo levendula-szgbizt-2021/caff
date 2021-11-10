@@ -49,4 +49,6 @@ unsigned char **        caff_gif_compress(unsigned char **, size_t *,
 
 char *                  caff_strerror(enum caff_error);
 
+void                    caff_destroy(struct caff *);
+
 #endif /* CAFF_H */

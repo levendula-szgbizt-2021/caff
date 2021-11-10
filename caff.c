@@ -103,6 +103,7 @@ void                            caff_dump_info(FILE *, struct caff *);
 unsigned char **                caff_gif_compress(unsigned char **,
 				    size_t *, struct caff *);
 char *                          caff_strerror(enum caff_error);
+void                            caff_destroy(struct caff *);
 
 enum caff_error                 cafferrno;
 
@@ -446,6 +447,8 @@ caff_gif_compress(unsigned char **out, size_t *len, struct caff *caff)
 			cafferrno = CAFF_EIMAGICK;
 			return NULL;
 		}
+
+		free(jpeg);
 	}
 
 	/* Images will be written starting from current iterator */
@@ -501,4 +504,16 @@ caff_strerror(enum caff_error err)
 	default:
 		return "Unknown error";
 	}
+}
+
+void
+caff_destroy(struct caff *caff)
+{
+	unsigned long long      i;
+
+	free(caff->caff_creator);
+	for (i = 0; i < caff->caff_nframe; ++i)
+		ciff_destroy(caff->caff_frames[i].fr_ciff);
+	free(caff->caff_frames);
+	free(caff);
 }
