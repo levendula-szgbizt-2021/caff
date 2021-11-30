@@ -2,8 +2,8 @@ LIB             = libcaff.a
 DLIB            = libcaff.so
 CLI             = caff
 
-MAN1            =
-MAN3            =
+MAN1            = caff.1
+MAN3            = caff.3
 
 SRCS            = caff.c cli.c
 HDRS            = caff.h
@@ -63,6 +63,8 @@ deinstall-man:
 	rm -f ${PREFIX}/man/man1/${MAN1} ${PREFIX}/man/man3/${MAN3}
 
 install: install-lib install-cli install-man
+
+install-noman: install-lib install-cli
 
 deinstall: deinstall-lib deinstall-cli deinstall-man
 
