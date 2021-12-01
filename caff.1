@@ -19,7 +19,7 @@
 .Nm caff
 .Nd parse and convert CrySyS Animated Image File Format files
 .Sh SYNOPSIS
-.Nm ciff
+.Nm caff
 .Op Fl hv
 .Op Fl i Ar index
 .Op Fl o Ar output
@@ -36,7 +36,7 @@ standard input.
 .Pp
 The options are as follows:
 .Bl -tag -width tenletters
-.It Fl o Ar index
+.It Fl i Ar index
 Instead of generating a GIF, write the index-th frame of the animation
 to a JPEG file.
 .It Fl o Ar output
@@ -49,7 +49,7 @@ Print usage.
 Be more verbose. This dumps information parsed from the CAFF to the
 standard error output in a pretty format.
 .Sh RETURN VALUES
-.Ex -std ciff
+.Ex -std caff
 It may fail for one of the following reasons:
 .Pp
 .Bl -bullet -compact

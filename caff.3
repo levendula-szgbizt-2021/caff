@@ -20,29 +20,29 @@
 .Os
 .\" ----------------------------------------------------------------
 .Sh NAME
-.Nm ciff
+.Nm caff
 .Nd CrySyS Image File Format parser and converter library
 .\" ----------------------------------------------------------------
 .Sh SYNOPSIS
-.In ciff.h
+.In caff.h
 .Pp
 .Fd enum caff_error;
 .Fd struct frame;
 .Fd struct caff;
 .Pp
-.Fd enum caff_error cifferrno;
+.Fd enum caff_error cafferrno;
 .Pp
 .Ft struct caff *
 .Fn caff_parse "struct caff *dst" "char *in" "size_t len"
 .Ft void
-.Fn caff_dump_info "FILE *stream" "struct ciff *caff"
+.Fn caff_dump_info "FILE *stream" "struct caff *caff"
 .Ft unsigned char **
 .Fn caff_gif_compress "unsigned char **dst" "size_t *len" \
     "struct caff *caff"
 .Ft char *
 .Fn caff_strerror "enum caff_error err"
 .Ft void
-.Fn caff_destroy "struct caff *ciff"
+.Fn caff_destroy "struct caff *caff"
 .\" ----------------------------------------------------------------
 .Sh DESCRIPTION
 The
@@ -51,96 +51,93 @@ library provides structures and functions to handle
 .Em caff
 files.
 .Pp
-THERE IS NOT ENOUGH TIME TO FINISH THIS MANPAGE.
-.\"The main structure that describes the data of a ciff file is
-.\".Vt struct caff
-.\"which contains the following members:
-.\".Bl -ohang -offset indent
-.\".It Fa "unsigned long long ciff_width"
-.\"the width of the image in pixels
-.\".It Fa "unsigned long long ciff_height"
-.\"the height of the image in pixels
-.\".It Fa "char *ciff_cap"
-.\"the image caption (NUL-terminated string)
-.\".It Fa "char **ciff_tags"
-.\"image tags (NULL-terminated array of NUL-terminated strings)
-.\".It Fa "struct pixel *ciff_content"
-.\"image pixels (row by row, top to bottom)
-.\".El
-.\".Pp
-.\"Each pixel is stored in a structure
-.\".Vt "struct pixel",
-.\"which has the following three fields:
-.\".Bl -ohang -offset indent
-.\".It Fa "unsigned_char px_r"
-.\"the red colour value (0..255)
-.\".It Fa "unsigned_char px_g"
-.\"the green colour value (0..255)
-.\".It Fa "unsigned_char px_b"
-.\"the blue colour value (0..255)
-.\".El
-.\".Pp
-.\"You can parse a new ciff image from data pointed to by a
-.\".Fa char *
-.\"using
-.\".Fn "ciff_parse",
-.\"but the destination must be pre-allocated and
-.\".Fn "free"
-.\"\'d by the caller.
-.\".Pp
-.\".Fn ciff_dump_header
-.\"and
-.\".Fn ciff_dump_pixels
-.\"are indented for debugging purposes: they dump the header and the body
-.\"(contents) of the ciff, respectively, to the given stream.
-.\".Pp
-.\"To get an image which can be displayed in conventional viewers, use
-.\".Fn "ciff_jpeg_compress".
-.\"The value of
-.\".Fa dst
-.\"is ignored, and sufficient memory is allocated to the memory pointed to
-.\"by it. It is the responsibility of the caller to later
-.\".Fn free
-.\"this memory.
-.\"The value of
-.\".Fa dst
-.\"is returned on success, or
-.\".Fa "NULL",
-.\"in case of a failure.
-.\"After a successful call, the data pointed to by
-.\".Fa *dst
-.\"is a JPEG-compressed image that is equivalent to the ciff's contents and
-.\".Fa len
-.\"contains the length of the image data.
-.\"See
-.\".Pa cli.c
-.\"for an example on how this function can be used.
-.\".Pp
-.\"Do not forget to properly destroy your
-.\".Fa "struct ciff"
-.\"objects. It is recommended to use the
-.\".Fn ciff_destroy
-.\"function for this purpose.
-.\".Pp
-.\"Error handling in the
-.\".Nm
-.\"library is implemented using an errno-like mechanism; see
-.\".Xr intro 2
-.\"for more details on the standard errno. If any library call is
-.\"unsuccessful, a special value (eg NULL) is returned, and the designated
-.\"global variable
-.\".Fa cifferrno
-.\"is set to a value describing the error. To get a textual description of
-.\"the error, use
-.\".Fn "ciff_strerror",
-.\"which is akin to the standard
-.\".Xr strerror 3
-.\"function.
-.\".Fa cifferrno
-.\"is never reset and so it is only meaningful to check its value if an
-.\"error has been indicated by a function’s return value.
+The main structure that describes the data of a caff file is
+.Vt struct caff
+which contains the following members:
+.Bl -ohang -offset indent
+.It Fa "unsigned long long caff_nframe"
+number of animation frames
+.It Fa "struct tm caff_date"
+creation date
+.It Fa "char *caff_creator"
+creator (author) name (NUL-terminated string)
+.It Fa "struct frame *caff_frames"
+animation frames (pointer to an array of
+.Fa caff_nframe
+.Vt struct frame
+objects)
+.El
+.Pp
+Each frame is stored in a structure
+.Vt "struct frame",
+which has the following two fields:
+.Bl -ohang -offset indent
+.It Fa "unsigned long long fr_dur"
+frame duration (in milliseconds)
+.It Fa "struct ciff *fr_ciff"
+the CIFF image data of the frame
+.El
+.Pp
+You can parse a new CAFF image from data pointed to by a
+.Fa char *
+using
+.Fn "caff_parse",
+but the destination must be pre-allocated and
+.Fn "free"
+\'d by the caller.
+.Pp
+.Fn caff_dump_info
+is indented for debugging purposes: it dumps the non-content related
+data of the CAFF to the given stream.
+.Pp
+To get an image which can be displayed in conventional viewers, use
+.Fn "caff_gif_compress".
+The value of
+.Fa dst
+is ignored, and sufficient memory is allocated to the memory pointed to
+by it. It is the responsibility of the caller to later
+.Fn free
+this memory.
+The value of
+.Fa dst
+is returned on success, or
+.Fa "NULL",
+in case of a failure.
+After a successful call, the data pointed to by
+.Fa *dst
+is a GIF-compressed image that is equivalent to the CAFF's contents and
+.Fa len
+contains the length of the image data.
+See
+.Pa cli.c
+for an example on how this function can be used.
+.Pp
+Do not forget to properly destroy your
+.Fa "struct caff"
+objects. It is recommended to use the
+.Fn caff_destroy
+function for this purpose.
+.Pp
+Error handling in the
+.Nm
+library is implemented using an errno-like mechanism; see
+.Xr intro 2
+for more details on the standard errno. If any library call is
+unsuccessful, a special value (eg NULL) is returned, and the designated
+global variable
+.Fa cafferrno
+is set to a value describing the error. To get a textual description of
+the error, use
+.Fn "caff_strerror",
+which is akin to the standard
+.Xr strerror 3
+function.
+.Fa cafferrno
+is never reset and so it is only meaningful to check its value if an
+error has been indicated by a function’s return value.
 .\" ----------------------------------------------------------------
 .Sh SEE ALSO
+.Xr ciff 3
 .Xr caff 1
 .\" ----------------------------------------------------------------
 .Sh STANDARDS
