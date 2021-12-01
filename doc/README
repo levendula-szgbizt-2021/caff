@@ -10,12 +10,15 @@ afl.
 ------------------------------------------------------------------------
 
 Fuzzing results
+---------------
 
 We have applied fuzzing-based testing to the code but there is not
 sufficient time to add the results to the repo...
 
 ------------------------------------------------------------------------
 
+Valgrind
+--------
 The code has been tested with valgrind for memory leaks.
 
 Some bugs were fixed in 403913e, which were simply due to the lack of a
@@ -45,4 +48,4 @@ Valgrind's logs have been placed in this directory:
 The former shows that the library does not have any serious memory-leak
 problems. The latter shows a plethora of errors caused by ImageMagick.
 
-2021-11-10
+2021-12-01
