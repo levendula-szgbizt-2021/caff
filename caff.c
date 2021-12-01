@@ -176,7 +176,7 @@ _parse_header(struct caff *dst, char **in, unsigned long long len)
 	if (len == 0)
 		return NULL;
 
-	PARSE64(dst->caff_hsize, *in, len)
+	*in += 8; len -= 8; /* ignore header size field, it's useless */
 	PARSE64(dst->caff_nframe, *in, len)
 
 	if ((dst->caff_frames
@@ -396,8 +396,6 @@ caff_dump_info(FILE *stream, struct caff *caff)
 	    &caff->caff_date);
 
 	(void)_print_separator(stream, '-', 64);
-	(void)fprintf(stream, "Header size:\t%llu\n",
-	    caff->caff_hsize);
 	(void)fprintf(stream, "Frame count:\t%llu\n",
 	    caff->caff_nframe);
 	(void)fprintf(stream, "Creation date:\t%s\n", dtbuf);

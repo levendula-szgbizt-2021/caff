@@ -33,7 +33,6 @@ struct frame {
 };
 
 struct caff {
-	unsigned long long      caff_hsize;
 	unsigned long long      caff_nframe;
 	struct tm               caff_date;
 	char                   *caff_creator;
