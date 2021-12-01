@@ -383,6 +383,12 @@ caff_parse(struct caff *dst, char *in, size_t len)
 		free(p);
 	}
 
+	/* Verify all frames have been read */
+	if (curframe != dst->caff_nframe) {
+		cafferrno = CAFF_ENOMORE;
+		return NULL;
+	}
+
 	free(blk);
 	return dst;
 }
