@@ -244,12 +244,12 @@ _parse_frame(struct caff *dst, char **in, unsigned long long len)
 	if (len == 0)
 		return NULL;
 
-	PARSE64(dst->caff_frames[curframe].fr_dur, *in, len)
-
 	if (curframe >= dst->caff_nframe) {
 		cafferrno = CAFF_EFRAMEC;
 		return NULL;
 	}
+
+	PARSE64(dst->caff_frames[curframe].fr_dur, *in, len)
 
 	if ((dst->caff_frames[curframe].fr_ciff
 	     = malloc(sizeof (struct ciff))) == NULL) {
