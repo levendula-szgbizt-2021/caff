@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Extract a CIFF file from the 1.caff CrySyS input file
+dd skip=81 count=2001081 bs=1 if=crysys/1.caff of=crysys/1.ciff

@@ -1,0 +1,74 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.32.0;
+
+use Date::Parse qw(str2time);
+use DateTime::Format::ISO8601;
+use DateTime::Format::Strptime;
+use DateTime;
+use File::Temp qw(tempfile);
+use Getopt::Long qw(GetOptions);
+use Image::Magick;
+
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use lib dirname(abs_path($0)); # add ./ to @INC
+
+use TestUtil qw(status);
+
+
+# parse arguments
+my $verb = 0;
+GetOptions('verbose' => \$verb);
+
+# set caff binary
+my $caff = $ENV{CAFF} || '../caff';
+
+# get temporary file
+(undef, my $tmpin) = tempfile();
+(undef, my $tmpout) = tempfile();
+
+# trap SIGINT to remove the temporary files
+#$SIG{INT} = sub { unlink $tmpin, $tmpout };
+
+my $date_fmter
+  = DateTime::Format::Strptime->new(pattern => '%Y-%m-%d %H:%M');
+
+# expected values
+my %exp = (
+    nframe  => 2,
+    date    => DateTime->now,
+    creator => 'Anonymous Al',
+    width   => 100,
+    height  => 100,
+);
+$exp{datestr} = $date_fmter->format_datetime($exp{date});
+
+# actual values
+system("./gentest -a '$exp{creator}' -d '$exp{datestr}' -o $tmpin"
+  . " 1000 $exp{width} $exp{height}"
+  . ' RedSquare     red,solid               red'
+  . " 1000 $exp{width} $exp{height}"
+  . ' DangerStripes yellow,black,stripes    danger')
+  == 0 or die "gentest script returned with $?";
+my $result = `$caff -vo $tmpout <$tmpin 2>&1`;
+
+my %act;
+($act{nframe}, $act{datestr}, $act{creator})
+  = ($result =~ /count:\s*(\d+).*date:\s*(.+)\n.*name:\s*([^\n]+)/is);
+
+my $img = Image::Magick->new;
+$img->Read($tmpout) == 2 or die "Failed to read GIF image";
+($act{width}, $act{height}) = $img->Get(qw(width height));
+
+# compare
+for my $key (qw(nframe width height)) {
+    status($key, $exp{$key}, $act{$key},
+      $exp{$key} == $act{$key}, $verb);
+}
+for my $key (qw(datestr creator)) {
+    status($key, $exp{$key}, $act{$key},
+      $exp{$key} eq $act{$key}, $verb);
+}

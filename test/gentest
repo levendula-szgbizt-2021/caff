@@ -1,0 +1,87 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use lib dirname(abs_path($0)); # add ./ to @INC
+
+use Date::Parse qw(str2time);
+use DateTime::Format::Strptime;
+use DateTime;
+use Getopt::Long qw(HelpMessage GetOptions);
+
+use Caff qw(gencaff);
+use Ciff qw(genciff);
+
+my $date_fmter
+  = DateTime::Format::Strptime->new(pattern => '%Y-%m-%d %H:%M');
+
+my $author = "Anonymous Al";
+my $date = DateTime->now;
+my $datestr = $date_fmter->format_datetime($date);
+my $out;
+GetOptions(
+    'author=s'  => \$author,
+    'date=s'    => \$datestr,
+    'output=s'  => \$out,
+    'help'      => sub { HelpMessage(0) },
+) or HelpMessage(1);
+
+HelpMessage(1) unless (@ARGV >= 6);
+my @frames;
+while (@ARGV) {
+    my ($dur, $width, $height, $caption, $tags, $type) = @ARGV[0..5];
+    splice @ARGV, 0, 6;
+
+    push @frames, {
+        duration    => $dur,
+        width       => $width,
+        height      => $height,
+        caption     => $caption,
+        tags        => [split ',', $tags],
+        type        => $type,
+    };
+}
+
+my $fh;
+if ($out) {
+    open($fh, '>', $out) or die "Failed to open output file";
+} else {
+    open($fh, '>&', \*STDOUT) or die "Failed to open stdout";
+}
+
+print $fh Caff::gencaff $author, \@frames, $date;
+
+
+=pod
+
+=head1 NAME
+
+gentest - generate simple CAFF test images
+
+=head1 SYNOPSIS
+
+gentest [-h] [-a author] [-d date] [-o output] duration width height caption tags type ...
+
+  --help,-h     Display this help message
+  --author,-a   Image creator (default is 'Anonymous Al')
+  --date,-d     Creation date ('%Y-%m-%d %H:%S' format, default is now)
+  --output,-o   Output file (default is stdout)
+
+  duration      Frame duration (milliseconds)
+  width         Image width
+  height        Image height
+  caption       Image caption
+  tags          Comma-separated list of tags
+  type          One of {red, huflag, itflag, danger}
+
+  Please specify the last 6 arguments as many times as many frames you
+  want. At least one frame is mandatory.
+
+=head1 VERSION
+
+0.01
+
+=cut

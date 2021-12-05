@@ -1,0 +1,34 @@
+Simple test suite for the CIFF parser and converter utility.
+
+To run all tests, simply execute
+
+	$ make
+
+If you would like to see what is being compared, set VERBOSE to 1, ie
+
+	$ make VERBOSE=1
+
+
+------------------------------------------------------------------------
+
+Files in this directory:
+
+	fuzz/           fuzzing-related tests' directory
+
+	gentest         script responsible for generating input CIFF
+			files; see `./gentest -h' for usage
+
+	Makefile        minimal Makefile to run all tests with make
+
+	README          this documentation
+
+	test-*          individual tests; they may contain anything, but
+			must be executable
+
+	TestUtil.pm     utility Perl module for Perl tests
+
+
+The Makefile simply executes all files that match the name test-* in the
+directory, sequentially. It is the responsibility of the individual
+binaries (most likely scripts) to print diagnostics regarding the test
+results.
