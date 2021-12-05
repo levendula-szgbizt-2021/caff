@@ -12,8 +12,13 @@ afl.
 Fuzzing results
 ---------------
 
-We have applied fuzzing-based testing to the code but there is not
-sufficient time to add the results to the repo...
+We have applied fuzzing-based testing to the code.
+Some initialy discovered issues have been fixed.
+
+Finally, after two hours of fuzzing, no more crashes were found.
+You can try fuzzing yourself using the Makefile in test/fuzz/.
+The results of the 2-hour fuzzing session are summarized in
+fuzzing-summary.log in this directory.
 
 ------------------------------------------------------------------------
 
